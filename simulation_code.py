@@ -289,85 +289,73 @@ def figure_1_and_A1():
     max_x = sweep[:, :, 0].max(axis=1)
     argmin = sweep[:, :, 0].argmin(axis=1)
     best_ang = np.unwrap(angles[argmin])
-    baseline_terminal_sign = np.sign(traj[-1, 0])
-    switched = (min_x < 0) if baseline_terminal_sign > 0 else (max_x > 0)
-    physical = refined_physical_boundary()
+    tphys = refined_physical_boundary(288)
 
-    fig, axs = plt.subplots(2, 2, figsize=(10.4, 7.6))
-    ax = axs[0, 0]
-    ax.plot(grid, traj[:, 0], lw=1.8, color=PURPLE, label="branch coordinate x")
-    ax.plot(grid, traj[:, 1] / 5.0, lw=1.5, color=TEAL, label="y / 5")
-    ax.axhline(0, ls="--", lw=1, color=GRAY)
-    ax.set_xlabel("time")
-    ax.set_ylabel("state")
-    ax.set_title("(a) Uncontrolled passage through the steering transition")
-    ax.grid(alpha=0.18)
-    ax.legend(frameon=True, fontsize=8)
+    interp_sens = np.interp(sweep_times, grid, sens)
+    interp_lev = np.interp(sweep_times, grid, lever)
 
-    ax = axs[0, 1]
-    margin = -min_x if baseline_terminal_sign > 0 else max_x
-    ax.plot(sweep_times, margin, lw=1.9, color=PURPLE, label="best nonlinear terminal margin")
-    ax.axhline(0, ls="--", lw=1, color=GRAY)
-    ax.axvline(physical, ls=":", lw=1.5, color=DARK, label=f"physical boundary ≈ {physical:.3f}")
-    ax.fill_between(sweep_times, 0, margin, where=switched, color=LIGHT_PURPLE, alpha=0.8)
-    ax.set_xlabel("pulse start time")
-    ax.set_ylabel("terminal switching margin")
-    ax.set_title("(b) Finite policy reachability")
-    ax.grid(alpha=0.18)
-    ax.legend(frameon=True, fontsize=8)
+    fig, axs = plt.subplots(3, 1, figsize=(9.0, 9.0), sharex=True)
+    axs[0].fill_between(sweep_times, min_x, max_x, color=TEAL, alpha=0.18, label="terminal x reachable range")
+    axs[0].plot(sweep_times, min_x, lw=2.2, color=PURPLE, label="best terminal x")
+    axs[0].axhline(0.0, ls="--", lw=1.6, color=GRAY, label="branch boundary")
+    axs[0].axvline(tphys, ls=":", lw=1.8, color=DARK, label="refined policy-class lock")
+    axs[0].set_ylabel("terminal branch coordinate")
+    axs[0].legend(frameon=True, ncol=2)
+    axs[0].grid(alpha=0.18)
 
-    ax = axs[1, 0]
-    ax.plot(grid, sens / sens.max(), lw=1.7, color=PURPLE, label="normalized state sensitivity")
-    ax.plot(grid, lever / lever.max(), lw=1.7, color=TEAL, label="normalized input leverage")
-    ax.set_xlabel("time")
-    ax.set_ylabel("normalized quantity")
-    ax.set_title("(c) Terminal sensitivity and local intervention leverage")
-    ax.grid(alpha=0.18)
-    ax.legend(frameon=True, fontsize=8)
+    axs[1].plot(sweep_times, interp_sens / interp_sens.max(), lw=2.2, color=GREEN, label="branch-state sensitivity")
+    axs[1].plot(sweep_times, interp_lev / interp_lev.max(), lw=2.2, color=TEAL, label="branch input leverage")
+    axs[1].axvline(tphys, ls=":", lw=1.8, color=DARK)
+    axs[1].set_ylabel("normalized magnitude")
+    axs[1].legend(frameon=True)
+    axs[1].grid(alpha=0.18)
 
-    ax = axs[1, 1]
-    ax.plot(sweep_times, best_ang, lw=1.7, color=PURPLE, label="nonlinear optimum")
-    ax.plot(grid, linear_angle, ls="--", lw=1.5, color=TEAL, label="local prediction")
-    ax.axvline(physical, ls=":", lw=1.4, color=DARK)
-    ax.set_xlabel("pulse start time")
-    ax.set_ylabel("pulse angle (rad)")
-    ax.set_title("(d) Action direction rotates near the reachability boundary")
-    ax.grid(alpha=0.18)
-    ax.legend(frameon=True, fontsize=8)
+    axs[2].plot(sweep_times, best_ang, lw=2.2, color=PURPLE, label="finite-pulse optimum")
+    lin = np.interp(sweep_times, grid, linear_angle)
+    offset = 2 * np.pi * np.round((best_ang[0] - lin[0]) / (2 * np.pi))
+    axs[2].plot(sweep_times, lin + offset, "--", lw=2.0, color=GRAY, label="linear kernel prediction")
+    axs[2].axvline(tphys, ls=":", lw=1.8, color=DARK)
+    axs[2].set(xlabel="pulse start time", ylabel="optimal action angle [rad]")
+    axs[2].legend(frameon=True)
+    axs[2].grid(alpha=0.18)
+
+    fig.suptitle("Deformation-steering normal form: sensitivity, interventionability, and action drift", y=0.995)
     fig.tight_layout()
-    fig.savefig(FIG / "fig01.png", dpi=320, bbox_inches="tight")
+    fig.savefig(FIG / "fig01.png", dpi=220)
     plt.close(fig)
 
     tt, R, D, lock = exact_saddle_benchmark()
-    fig, ax = plt.subplots(figsize=(7.4, 4.8))
-    ax.plot(tt, R, lw=1.9, color=PURPLE, label="maximum recoverable terminal displacement")
-    ax.plot(tt, D, ls="--", lw=1.6, color=TEAL, label="required displacement")
-    ax.axvline(lock, ls=":", lw=1.4, color=DARK, label=f"exact boundary ≈ {lock:.2f}")
-    ax.fill_between(tt, 0, np.minimum(R, D), where=R >= D, color=LIGHT_PURPLE, alpha=0.75)
-    ax.set_xlabel("pulse start time")
-    ax.set_ylabel("terminal displacement")
-    ax.set_title("Exact fixed-duration reachability benchmark")
+    fig, ax = plt.subplots(figsize=(8.2, 4.8))
+    ax.plot(tt, R, lw=2.4, color=TEAL, label="maximum reachable shift R(t)")
+    ax.plot(tt, D, "--", lw=2.2, color=PURPLE, label="distance to basin boundary D")
+    ax.axvspan(lock, tt[-1], color=PURPLE, alpha=0.12, label="locked")
+    ax.axvline(lock, ls=":", lw=1.6, color=GRAY)
+    ax.set(xlabel="intervention start time", ylabel="terminal displacement", title="Exact local saddle benchmark")
+    ax.legend(frameon=True)
     ax.grid(alpha=0.18)
-    ax.legend(frameon=True, fontsize=8)
     fig.tight_layout()
-    fig.savefig(FIG / "figA1.png", dpi=320, bbox_inches="tight")
+    fig.savefig(FIG / "figA1.png", dpi=220)
     plt.close(fig)
 
 
 def figure_2_information_boundary():
-    """Regenerate the information-versus-physical-boundary figure."""
+    """Regenerate physical/information boundary figure from archived posterior tables."""
     curve = pd.read_csv(DERIVED / "information_curve_highres.csv")
     audit = pd.read_csv(DERIVED / "information_boundary_highres.csv")
+    tphys = 4.15457130980865
     tinfo = _last_boundary_interpolation(audit)
-    tphys = refined_physical_boundary()
     latent_table = pd.read_csv(DERIVED / "latent_uncertainty_curve.csv")
-    latent = np.interp(curve.time, latent_table.time, latent_table.latent_sd)
+    if not np.allclose(latent_table.time.to_numpy(), curve.time.to_numpy(), atol=1e-12, rtol=0.0):
+        raise RuntimeError("Latent-uncertainty time grid does not match information curve")
+    latent = latent_table.latent_posterior_uncertainty.to_numpy()
 
-    fig, axs = plt.subplots(2, 1, figsize=(8.0, 7.0), sharex=True)
-    axs[0].plot(curve.time, curve.switch_probability, lw=1.7, color=PURPLE, label="posterior switching probability")
+    fig, axs = plt.subplots(2, 1, figsize=(8.8, 6.9), sharex=True)
+    axs[0].plot(curve.time, curve.switch_probability, marker="o", markersize=3.0, lw=1.25,
+                color=PURPLE, label="resolved active-branch propagation")
     for k, row in audit.iterrows():
-        axs[0].errorbar(row.time, row.switch_probability,
-                        yerr=1.96 * row.se, fmt="s", capsize=3, color=TEAL,
+        axs[0].errorbar([row.time], [row.switch_probability],
+                        yerr=[[row.switch_probability-row.wilson_low], [row.wilson_high-row.switch_probability]],
+                        fmt="s", capsize=3, color=TEAL,
                         label="independent high-sample audit" if k == audit.index[0] else None)
     axs[0].axhline(RELIABILITY, ls="--", lw=1.2, color=GRAY, label="95% reliability")
     axs[0].axvline(tinfo, ls="-.", lw=1.4, color=PURPLE, label="final information boundary")
@@ -396,15 +384,15 @@ def figure_2_information_boundary():
 
 
 def figure_3_branch_split():
-    """Regenerate the nonlinear branch-splitting figure from archived MC samples."""
+    """Regenerate the nonlinear branch-splitting figure from archived histogram data."""
     summary = pd.read_csv(DERIVED / "branch_split_exact_cadence.csv")
-    samples = pd.read_csv(DERIVED / "branch_split_samples.csv")
+    histogram = pd.read_csv(DERIVED / "branch_split_histogram.csv")
     fig, axs = plt.subplots(1, 3, figsize=(11.2, 3.45), sharey=True)
     for ax, (_, row) in zip(axs, summary.iterrows()):
         t = float(row.time)
-        q = samples.loc[np.isclose(samples.time, t), "q"].to_numpy()
-        bins = np.linspace(-1.15, 1.15, 58)
-        ax.hist(q, bins=bins, density=True, color=PURPLE, alpha=0.55, label="nonlinear posterior")
+        h = histogram.loc[np.isclose(histogram.time, t)].copy()
+        ax.bar(h.bin_left, h.density, width=h.bin_right-h.bin_left, align="edge",
+               color=PURPLE, alpha=0.55, label="nonlinear posterior")
         xx = np.linspace(-1.15, 1.15, 500)
         ax.plot(xx, norm.pdf(xx, loc=row.local_gaussian_mean, scale=row.local_gaussian_sd),
                 "--", lw=1.8, color=TEAL, label="local Gaussian")
@@ -438,11 +426,11 @@ def figure_4_uncertainty_scaling():
     ax.plot(xx, theory * xx, ls="--", lw=1.8, color=TEAL, label=rf"local theory: {theory:.3f}$\epsilon$")
     ax.plot(xx, slope * xx, lw=1.8, color=GREEN, label=rf"fit for $\epsilon\leq0.20$: {slope:.3f}$\epsilon$")
     ax.axvspan(0.20, 0.31, color=GRAY, alpha=0.06, label="outside fitted small-noise range")
-    ax.set_xlabel(r"uncertainty scale $\epsilon$")
+    ax.set_xlabel(r"posterior uncertainty amplitude $\epsilon$")
     ax.set_ylabel(r"information-to-physical gap $\Delta t$")
-    ax.set_title(rf"First-order information gap: fit $R^2={r2:.4f}$")
     ax.grid(alpha=0.18)
     ax.legend(frameon=True, fontsize=8)
+    ax.text(0.02, 0.93, rf"$R^2={r2:.4f}$", transform=ax.transAxes, va="top")
     fig.tight_layout()
     fig.savefig(FIG / "fig04.png", dpi=320, bbox_inches="tight")
     plt.close(fig)
@@ -453,32 +441,33 @@ def figure_5_robustness():
     struct = pd.read_csv(DERIVED / "structural_robustness.csv")
     dur = pd.read_csv(DERIVED / "pulse_duration_robustness.csv")
     mean = pd.read_csv(DERIVED / "posterior_mean_offset_robustness.csv")
-    fig, axs = plt.subplots(1, 3, figsize=(11.2, 3.65))
-    for parameter, gg in struct.groupby("parameter"):
-        gg = gg.sort_values("multiplier")
-        axs[0].plot(gg.multiplier, gg.gap, marker="o", lw=1.6, label=parameter)
-    axs[0].axhline(0, ls="--", lw=1, color=GRAY)
-    axs[0].set_xlabel("parameter multiplier")
-    axs[0].set_ylabel(r"gap $\Delta t$")
-    axs[0].set_title("(a) Structural robustness")
-    axs[0].grid(alpha=0.18)
-    axs[0].legend(frameon=True, fontsize=8)
+    fig, axs = plt.subplots(1, 3, figsize=(12.2, 4.0))
 
-    axs[1].plot(dur.pulse_duration, dur.t_phys, marker="o", lw=1.6, color=TEAL, label="physical")
-    axs[1].plot(dur.pulse_duration, dur.t_info, marker="s", lw=1.6, color=PURPLE, label="information")
-    axs[1].fill_between(dur.pulse_duration, dur.t_info, dur.t_phys, color=LIGHT_PURPLE, alpha=0.65)
+    piv = struct.pivot(index="deformation_multiplier", columns="coupling_multiplier", values="posterior_switch_probability")
+    im = axs[0].imshow(piv.values, origin="lower", aspect="auto", vmin=min(0.74, piv.values.min()), vmax=0.96, cmap=RECOVERY_CMAP)
+    axs[0].set_xticks(range(len(piv.columns)), [f"{x:.1f}" for x in piv.columns])
+    axs[0].set_yticks(range(len(piv.index)), [f"{x:.1f}" for x in piv.index])
+    axs[0].set_xlabel("latent coupling multiplier")
+    axs[0].set_ylabel("deformation multiplier")
+    axs[0].set_title(r"(a) Reliability 0.20 before $t_{phys}$")
+    for i in range(piv.shape[0]):
+        for j in range(piv.shape[1]):
+            axs[0].text(j, i, f"{piv.values[i,j]:.2f}", ha="center", va="center", fontsize=9)
+    fig.colorbar(im, ax=axs[0], fraction=0.046, pad=0.04, label="best resolved switch probability")
+
+    axs[1].plot(dur.duration, dur.gap, marker="o", lw=1.8, color=PURPLE)
     axs[1].set_xlabel("pulse duration")
-    axs[1].set_ylabel("boundary time")
+    axs[1].set_ylabel(r"$t_{phys}-t_{info}$")
     axs[1].set_title("(b) Policy-duration robustness")
     axs[1].grid(alpha=0.18)
-    axs[1].legend(frameon=True, fontsize=8)
 
-    axs[2].plot(mean.projected_sd_offset, mean.switch_probability, marker="o", lw=1.7, color=PURPLE)
-    axs[2].axhline(RELIABILITY, ls="--", lw=1.1, color=GRAY)
-    axs[2].set_xlabel("posterior-mean offset (projected SD)")
+    axs[2].plot(mean.projected_mean_bias_sigma, mean.switch_probability, marker="o", lw=1.8, color=TEAL)
+    axs[2].axhline(RELIABILITY, ls="--", lw=1, color=GRAY)
+    axs[2].set_xlabel(r"posterior-mean bias [$\sigma$]")
     axs[2].set_ylabel("best resolved switch probability at t=4.00")
     axs[2].set_title("(c) Mean-offset robustness")
     axs[2].grid(alpha=0.18)
+
     fig.tight_layout()
     fig.savefig(FIG / "fig05.png", dpi=320, bbox_inches="tight")
     plt.close(fig)
@@ -499,14 +488,14 @@ def figure_6_phase():
     ax.set_xlim(-0.005, 0.23)
     ax.grid(alpha=0.18)
     ax.legend(frameon=True, fontsize=8)
-    ax.text(0.02, 0.96, rf"range: {gaps.min():.2f}--{gaps.max():.2f}", transform=ax.transAxes, va="top", color=DARK)
+    ax.text(0.02, 0.96, f"range: {gaps.min():.2f}--{gaps.max():.2f}", transform=ax.transAxes, va="top", color=DARK)
     fig.tight_layout()
     fig.savefig(FIG / "fig06.png", dpi=320, bbox_inches="tight")
     plt.close(fig)
 
 
 def figure_7_sampling_null():
-    """Regenerate the Dorian sampling-geometry stress-test figure."""
+    """Regenerate the Dorian sampling-geometry null figure."""
     null = pd.read_csv(DERIVED / "dorian_sampling_geometry_null.csv")
     fig, ax = plt.subplots(figsize=(7.3, 4.6))
     ax.plot(null.strength_multiplier, null.false_saddle_fraction, marker="o", lw=1.8, color=PURPLE,
@@ -525,18 +514,20 @@ def figure_7_sampling_null():
 
 
 def figure_8_dorian():
-    """Regenerate the four-panel Dorian observational-geometry figure."""
+    """Regenerate Dorian translation/deformation and sampled-flow figure."""
     aff = pd.read_csv(OBS / "dorian_giv_affine_steering.csv")
     rob = pd.read_csv(OBS / "dorian_steering_robustness_summary.csv")
     grid = pd.read_csv(OBS / "dorian_steering_robustness_grid.csv")
     snd = pd.read_csv(OBS / "dorian_giv_layermean_soundings.csv")
+
     d = aff.merge(rob[["mission", "negative_fraction"]], on="mission", how="left").sort_values("midtime")
     x = np.arange(len(d))
     labels = [m[4:8] for m in d.mission]
+
     fig, axs = plt.subplots(2, 2, figsize=(10.4, 7.5))
     axs[0, 0].plot(x, d.track_speed_ms, marker="o", lw=1.7, color=PURPLE)
     axs[0, 0].set_xticks(x, labels, rotation=45)
-    axs[0, 0].set_ylabel("translation speed (m s$^{-1}$)")
+    axs[0, 0].set_ylabel(r"translation speed (m s$^{-1}$)")
     axs[0, 0].set_title("(a) Dorian translation during surveillance")
     axs[0, 0].grid(alpha=0.18)
 
@@ -548,7 +539,7 @@ def figure_8_dorian():
     axs[0, 1].set_title("(b) Layer/radius robustness")
     axs[0, 1].grid(alpha=0.18)
 
-    g = grid[(grid.mission == "20190902N1") & (grid.bottom == 850) & (grid.top == 300) & (grid.outer.isin([700.0, 900.0]))]
+    g = grid[(grid.mission == "20190902N1") & (grid.bottom == 850) & (grid.top == 300) & grid.outer.isin([700.0, 900.0])]
     for outer, gg in g.groupby("outer"):
         gg = gg.sort_values("inner")
         axs[1, 0].plot(gg.inner, gg.detJ, marker="o", lw=1.7,
@@ -562,18 +553,19 @@ def figure_8_dorian():
     axs[1, 0].legend(frameon=True)
 
     ss = snd[(snd.mission == "20190902N1") & (snd.r_km >= 300) & (snd.r_km <= 900)].copy()
-    X = np.c_[np.ones(len(ss)), ss.x_km.to_numpy() / 1000.0, ss.y_km.to_numpy() / 1000.0]
+    X = np.c_[np.ones(len(ss)), ss.x_km.to_numpy()/1000.0, ss.y_km.to_numpy()/1000.0]
     cu = np.linalg.lstsq(X, ss.u850_300.to_numpy(), rcond=None)[0]
     cv = np.linalg.lstsq(X, ss.v850_300.to_numpy(), rcond=None)[0]
     lim = 950
     gx = np.linspace(-lim, lim, 15)
     gy = np.linspace(-lim, lim, 15)
     XX, YY = np.meshgrid(gx, gy)
-    UU = cu[0] + cu[1] * (XX / 1000) + cu[2] * (YY / 1000)
-    VV = cv[0] + cv[1] * (XX / 1000) + cv[2] * (YY / 1000)
+    UU = cu[0] + cu[1]*(XX/1000) + cu[2]*(YY/1000)
+    VV = cv[0] + cv[1]*(XX/1000) + cv[2]*(YY/1000)
     axs[1, 1].streamplot(gx, gy, UU, VV, density=0.8, linewidth=0.8, arrowsize=0.7, color=GRAY)
-    axs[1, 1].quiver(ss.x_km, ss.y_km, ss.u850_300, ss.v850_300, angles="xy", scale_units="xy",
-                     scale=0.06, width=0.004, color=TEAL, label="layer-mean winds")
+    axs[1, 1].quiver(ss.x_km, ss.y_km, ss.u850_300, ss.v850_300,
+                     angles="xy", scale_units="xy", scale=0.06, width=0.004,
+                     color=TEAL, label="layer-mean winds")
     axs[1, 1].scatter([0], [0], marker="*", s=90, color=PURPLE, label="storm center")
     axs[1, 1].set_xlim(-lim, lim)
     axs[1, 1].set_ylim(-lim, lim)
@@ -582,37 +574,41 @@ def figure_8_dorian():
     axs[1, 1].set_ylabel("storm-relative y (km)")
     axs[1, 1].set_title("(d) Sep 2 sampled affine field")
     axs[1, 1].legend(frameon=True, fontsize=7)
+
     fig.tight_layout()
     fig.savefig(FIG / "fig08.png", dpi=320, bbox_inches="tight")
     plt.close(fig)
 
 
 def _short_date(mission):
-    """Convert a NOAA mission identifier to a compact month-day label."""
+    """Convert compact YYYYMMDD mission names to short month-day labels."""
     digits = "".join(ch for ch in str(mission) if ch.isdigit())[:8]
     dt = datetime.strptime(digits, "%Y%m%d")
     return f"{dt.strftime('%b')} {dt.day}"
 
 
 def figure_B1_positive_control():
-    """Regenerate the Dorian/Joaquin broad-domain comparison figure."""
+    """Regenerate the Dorian/Joaquin qualitative positive-control comparison."""
     ds = pd.read_csv(OBS / "dorian_steering_robustness_summary.csv")
     da = pd.read_csv(OBS / "dorian_giv_affine_steering.csv")
     js = pd.read_csv(OBS / "joaquin_steering_robustness_summary.csv")
     jb = pd.read_csv(OBS / "joaquin_steering_base_bootstrap.csv")
     d = ds.merge(da[["mission", "track_speed_ms"]], on="mission", how="left")
     j = js.merge(jb[["mission", "track_speed_ms"]], on="mission", how="left")
+
     fig, ax = plt.subplots(figsize=(7.4, 4.8))
     ax.scatter(d.track_speed_ms, d.negative_fraction, s=55, color=PURPLE, label="Dorian 2019")
     ax.scatter(j.track_speed_ms, j.negative_fraction, s=70, marker="^", color=TEAL, label="Joaquin 2015")
     ax.axhline(0.5, ls="--", lw=1, color=GRAY, alpha=0.65)
+
     for _, r in d[d.mission.isin(["20190902N1", "20190903N1"])].iterrows():
         ax.annotate(_short_date(r.mission), (r.track_speed_ms, r.negative_fraction),
                     xytext=(5, 5), textcoords="offset points", fontsize=7.5)
     for _, r in j.iterrows():
         ax.annotate(_short_date(r.mission), (r.track_speed_ms, r.negative_fraction),
                     xytext=(5, -12), textcoords="offset points", fontsize=7.5)
-    ax.set_xlabel("observed translation speed (m s$^{-1}$)")
+
+    ax.set_xlabel(r"observed translation speed (m s$^{-1}$)")
     ax.set_ylabel(r"fraction of reductions with $\det J<0$")
     ax.set_ylim(-0.03, 1.04)
     ax.grid(alpha=0.18)
@@ -629,7 +625,7 @@ def required_inputs():
         DERIVED / "information_curve_highres.csv",
         DERIVED / "information_boundary_highres.csv",
         DERIVED / "branch_split_exact_cadence.csv",
-        DERIVED / "branch_split_samples.csv",
+        DERIVED / "branch_split_histogram.csv",
         DERIVED / "small_uncertainty_gap_scaling_highres.csv",
         DERIVED / "structural_robustness.csv",
         DERIVED / "pulse_duration_robustness.csv",
