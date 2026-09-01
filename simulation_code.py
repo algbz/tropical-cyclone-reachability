@@ -79,7 +79,6 @@ OBS = ROOT / "observational"
 FIG = ROOT / "figures"
 FIG.mkdir(exist_ok=True)
 
-# Palette used consistently across the manuscript.
 PURPLE = "#6f4aa2"
 TEAL = "#2a9d8f"
 GREEN = "#3a8f5d"
@@ -90,7 +89,6 @@ RECOVERY_CMAP = LinearSegmentedColormap.from_list(
     "recoverability", [LIGHT_PURPLE, "#bba7d1", PURPLE]
 )
 
-# Frozen nondimensional normal-form parameters.
 T = 12.0
 DT = 0.02
 H = 0.005
@@ -103,24 +101,20 @@ RELIABILITY = 0.95
 
 
 def lam(y):
-    """Localized branch-instability coefficient."""
     return 0.15 + 0.85 * np.exp(-(np.asarray(y) / 1.25) ** 2)
 
 
 def lam_prime(y):
-    """Derivative of :func:`lam` with respect to y."""
     y = np.asarray(y)
     e = np.exp(-(y / 1.25) ** 2)
     return 0.85 * e * (-2.0 * y / 1.25**2)
 
 
 def theta(y):
-    """Orientation of the dominant latent steering direction."""
     return 0.50 + 0.90 * np.tanh(np.asarray(y) / 1.8)
 
 
 def rhs(S, U):
-    """Vectorized right-hand side for rows of states S and inputs U."""
     x, y, z1, z2 = S.T
     th = theta(y)
     c, s = np.cos(th), np.sin(th)
@@ -133,13 +127,11 @@ def rhs(S, U):
 
 
 def rk2(S, U, h):
-    """One explicit-midpoint RK2 step."""
     k1 = rhs(S, U)
     return S + h * rhs(S + 0.5 * h * k1, U)
 
 
 def baseline_trajectory(step=DT):
-    """Integrate the uncontrolled trajectory at the requested fixed step."""
     n = int(round(T / step))
     traj = np.empty((n + 1, 4), dtype=float)
     S = X0[None, :].copy()
@@ -152,14 +144,12 @@ def baseline_trajectory(step=DT):
 
 
 def _rk2_subset(S, U, h):
-    """Advance a selected ensemble subset over one constant-input substep."""
     if len(S) == 0 or h <= 0:
         return S
     return rk2(S, U, h)
 
 
 def pulse_sweep(pulse_times, angles, duration=PULSE_DURATION, magnitude=U_MAX):
-    """Integrate all start-time/angle pulse cases with exact pulse-end splitting."""
     pulse_times = np.asarray(pulse_times, float)
     angles = np.asarray(angles, float)
     nstep = int(round(T / DT))
@@ -189,7 +179,6 @@ def pulse_sweep(pulse_times, angles, duration=PULSE_DURATION, magnitude=U_MAX):
 
 
 def jacobian(state):
-    """Jacobian of the uncontrolled four-state vector field."""
     x, y, _, _ = state
     A = np.zeros((4, 4), dtype=float)
     A[0, 0] = lam(y) - 3.0 * KAPPA * x**2
@@ -204,7 +193,6 @@ def jacobian(state):
 
 
 def input_matrix(y):
-    """Return the 4x2 state-input matrix B(y)."""
     th = float(theta(y))
     c, s = math.cos(th), math.sin(th)
     G = np.zeros((4, 2))
@@ -213,7 +201,6 @@ def input_matrix(y):
 
 
 def terminal_sensitivity_and_kernel(traj):
-    """Return branch-coordinate state sensitivity, input leverage, and local action angle."""
     nstep = len(traj) - 1
     ex = np.array([[1.0, 0.0, 0.0, 0.0]])
     P = ex.copy()
@@ -235,7 +222,6 @@ def terminal_sensitivity_and_kernel(traj):
 
 
 def refined_physical_boundary(n_angles=288):
-    """Interpolate the final deterministic pulse-class boundary on the frozen model."""
     times = np.arange(3.8, 4.401, DT)
     angles = np.linspace(0.0, 2 * np.pi, n_angles, endpoint=False)
     out = pulse_sweep(times, angles)
@@ -250,7 +236,6 @@ def refined_physical_boundary(n_angles=288):
 
 
 def exact_saddle_benchmark():
-    """Exact fixed-duration scalar benchmark used in Appendix A."""
     horizon = 8.0
     tt = np.linspace(0.0, horizon, 401)
     ell, q0, b, umax = 0.50, 0.020, 1.0, 0.270
@@ -263,7 +248,6 @@ def exact_saddle_benchmark():
 
 
 def _last_boundary_interpolation(table):
-    """Interpolate the 95% crossing from the high-sample boundary table."""
     rows = table.sort_values("time")
     vals = list(zip(rows.time.to_numpy(), rows.switch_probability.to_numpy()))
     crossings = [i for i in range(len(vals) - 1) if vals[i][1] >= RELIABILITY and vals[i + 1][1] < RELIABILITY]
@@ -276,7 +260,6 @@ def _last_boundary_interpolation(table):
 
 
 def figure_1_and_A1():
-    """Regenerate manuscript Fig. 1 and Appendix Fig. A1 from the ODE."""
     traj = baseline_trajectory(DT)
     nstep = len(traj) - 1
     grid = np.linspace(0.0, T, nstep + 1)
@@ -290,7 +273,6 @@ def figure_1_and_A1():
     argmin = sweep[:, :, 0].argmin(axis=1)
     best_ang = np.unwrap(angles[argmin])
     tphys = refined_physical_boundary(288)
-
     interp_sens = np.interp(sweep_times, grid, sens)
     interp_lev = np.interp(sweep_times, grid, lever)
 
@@ -318,7 +300,6 @@ def figure_1_and_A1():
     axs[2].set(xlabel="pulse start time", ylabel="optimal action angle [rad]")
     axs[2].legend(frameon=True)
     axs[2].grid(alpha=0.18)
-
     fig.suptitle("Deformation-steering normal form: sensitivity, interventionability, and action drift", y=0.995)
     fig.tight_layout()
     fig.savefig(FIG / "fig01.png", dpi=220)
@@ -339,7 +320,6 @@ def figure_1_and_A1():
 
 
 def figure_2_information_boundary():
-    """Regenerate physical/information boundary figure from archived posterior tables."""
     curve = pd.read_csv(DERIVED / "information_curve_highres.csv")
     audit = pd.read_csv(DERIVED / "information_boundary_highres.csv")
     tphys = 4.15457130980865
@@ -384,7 +364,6 @@ def figure_2_information_boundary():
 
 
 def figure_3_branch_split():
-    """Regenerate the nonlinear branch-splitting figure from archived histogram data."""
     summary = pd.read_csv(DERIVED / "branch_split_exact_cadence.csv")
     histogram = pd.read_csv(DERIVED / "branch_split_histogram.csv")
     fig, axs = plt.subplots(1, 3, figsize=(11.2, 3.45), sharey=True)
@@ -409,7 +388,6 @@ def figure_3_branch_split():
 
 
 def figure_4_uncertainty_scaling():
-    """Regenerate the small-uncertainty scaling figure from archived seed groups."""
     df = pd.read_csv(DERIVED / "small_uncertainty_gap_scaling_highres.csv")
     grouped = df.groupby("epsilon").gap.agg(["mean", "std"]).reset_index()
     xfit = grouped.loc[grouped.epsilon <= 0.20, "epsilon"].to_numpy()
@@ -437,7 +415,6 @@ def figure_4_uncertainty_scaling():
 
 
 def figure_5_robustness():
-    """Regenerate structural, duration, and posterior-mean robustness panels."""
     struct = pd.read_csv(DERIVED / "structural_robustness.csv")
     dur = pd.read_csv(DERIVED / "pulse_duration_robustness.csv")
     mean = pd.read_csv(DERIVED / "posterior_mean_offset_robustness.csv")
@@ -474,7 +451,6 @@ def figure_5_robustness():
 
 
 def figure_6_phase():
-    """Regenerate the observation-grid phase robustness figure."""
     df = pd.read_csv(DERIVED / "observation_phase_sweep.csv")
     phases = df.observation_phase.to_numpy()
     gaps = df.gap.to_numpy()
@@ -495,7 +471,6 @@ def figure_6_phase():
 
 
 def figure_7_sampling_null():
-    """Regenerate the Dorian sampling-geometry null figure."""
     null = pd.read_csv(DERIVED / "dorian_sampling_geometry_null.csv")
     fig, ax = plt.subplots(figsize=(7.3, 4.6))
     ax.plot(null.strength_multiplier, null.false_saddle_fraction, marker="o", lw=1.8, color=PURPLE,
@@ -514,7 +489,6 @@ def figure_7_sampling_null():
 
 
 def figure_8_dorian():
-    """Regenerate Dorian translation/deformation and sampled-flow figure."""
     aff = pd.read_csv(OBS / "dorian_giv_affine_steering.csv")
     rob = pd.read_csv(OBS / "dorian_steering_robustness_summary.csv")
     grid = pd.read_csv(OBS / "dorian_steering_robustness_grid.csv")
@@ -581,14 +555,12 @@ def figure_8_dorian():
 
 
 def _short_date(mission):
-    """Convert compact YYYYMMDD mission names to short month-day labels."""
     digits = "".join(ch for ch in str(mission) if ch.isdigit())[:8]
     dt = datetime.strptime(digits, "%Y%m%d")
     return f"{dt.strftime('%b')} {dt.day}"
 
 
 def figure_B1_positive_control():
-    """Regenerate the Dorian/Joaquin qualitative positive-control comparison."""
     ds = pd.read_csv(OBS / "dorian_steering_robustness_summary.csv")
     da = pd.read_csv(OBS / "dorian_giv_affine_steering.csv")
     js = pd.read_csv(OBS / "joaquin_steering_robustness_summary.csv")
@@ -620,7 +592,6 @@ def figure_B1_positive_control():
 
 
 def required_inputs():
-    """Return all machine-readable files needed for complete figure regeneration."""
     return [
         DERIVED / "information_curve_highres.csv",
         DERIVED / "information_boundary_highres.csv",
@@ -643,7 +614,6 @@ def required_inputs():
 
 
 def main():
-    """Validate inputs and regenerate the complete manuscript figure set."""
     parser = argparse.ArgumentParser(description="Regenerate every manuscript figure.")
     parser.add_argument("--check", action="store_true", help="only verify that all required inputs are present")
     args = parser.parse_args()
@@ -671,16 +641,8 @@ def main():
         func()
 
     expected = [
-        "fig01.png",
-        "fig02.png",
-        "fig03.png",
-        "fig04.png",
-        "fig05.png",
-        "fig06.png",
-        "fig07.png",
-        "fig08.png",
-        "figA1.png",
-        "figB1.png",
+        "fig01.png", "fig02.png", "fig03.png", "fig04.png", "fig05.png",
+        "fig06.png", "fig07.png", "fig08.png", "figA1.png", "figB1.png",
     ]
     absent = [name for name in expected if not (FIG / name).exists()]
     if absent:
